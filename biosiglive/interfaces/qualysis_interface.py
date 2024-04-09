@@ -15,29 +15,29 @@ except ModuleNotFoundError:
 
 class QualysisClient(GenericInterface):
     """
-    Class for interfacing with the Vicon system.
+    Class for interfacing with the Qualisys system.
     """
 
-    def __init__(self, system_rate: int, ip: str = "127.0.0.1", port: int = 801, init_now=True):
+    def __init__(self, system_rate: int, ip: str = "192.168.254.1", port: int = 22224, init_now=True):
         """
-        Initialize the ViconClient class.
+        Initialize the QualisysClient class.
 
         Parameters
         ----------
         system_rate: int
-            Streaming rate of the nexus software.
+            Streaming rate of the Qualisys software.
         ip: str
-            IP address of the nexus software.
+            IP address of the Qualisys software.
         port: int
-            Port of the nexus software.
+            Port of the Qualisys software.
         init_now: bool
             Whether to initialize the client now.
             Usefull if you want to pickle the interface as the Vicon SDK is not pickable (swig).
         """
-        super(ViconClient, self).__init__(ip=ip, system_rate=system_rate, interface_type=InterfaceType.ViconClient)
-        self.address = f"{ip}:{port}"
-
-        self.vicon_client = None
+        super(QualysisClient, self).__init__(ip=ip, system_rate=system_rate, interface_type=InterfaceType.QualysisClient)
+        self.address =ip
+        self.port= None
+        self.qualysis_client = None
         self.acquisition_rate = None
         self.system_rate = system_rate
         self.devices = []
@@ -52,28 +52,29 @@ class QualysisClient(GenericInterface):
         """
         Initialize the Vicon client.
         """
-        print(f"Connection to ViconDataStreamSDK at : {self.address} ...")
-        self.vicon_client = VDS.Client()
-        self.vicon_client.Connect(self.address)
-        print("Connected to Vicon.")
+
+        print(f"Connection to Qualisys DataStreamSDK at : {self.address} ...")
+        self.qualysis_client.Connect = await qtm_rt.connect(self.address)
+        if self.qualysis_client.Connect is None:
+            self.qualysis_client._update_state("Error","Failed to connect")
+            return
+
+        print("Connected to Qualisys")
         self.is_initialized = True
 
-        # Enable several data types
-        self.vicon_client.EnableSegmentData()
-        self.vicon_client.EnableDeviceData()
-        self.vicon_client.EnableMarkerData()
-        self.vicon_client.EnableUnlabeledMarkerData()
-        self.get_frame()
-        if self.system_rate != self.vicon_client.GetFrameRate():
+""" pour le moment je ne trouver pas commetn avoir la Fs de Qualisys
+        if self.system_rate != self.qualisys_client.get_frame_rate():
             raise ValueError(
-                f"Vicon system rate ({self.vicon_client.GetFrameRate()}) does not match the system rate "
+                f"Vicon system rate ({self.qualisys_client.get_frame_rate()}) does not match the system rate "
                 f"({self.system_rate})."
             )
+"""
+
 
     def add_device(
         self,
         nb_channels: int,
-        device_type: Union[DeviceType, str] = DeviceType.Emg,
+        device_type: Union[DeviceType, str] = DeviceType.ForcePlate,
         data_buffer_size: int = None,
         name: str = None,
         rate: float = 2000,
@@ -107,8 +108,8 @@ class QualysisClient(GenericInterface):
             nb_channels, device_type, name, rate, device_range, processing_method, **process_kwargs
         )
         device_tmp.interface = self.interface_type
-        if self.vicon_client:
-            device_tmp.infos = self.vicon_client.GetDeviceOutputDetails(name)
+        if self.qualisys_client:
+            device_tmp.infos = self.qualisys.(name)
         else:
             device_tmp.infos = None
         device_tmp.data_windows = data_buffer_size
