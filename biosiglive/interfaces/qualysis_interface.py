@@ -13,7 +13,7 @@ except ModuleNotFoundError:
     pass
 
 
-class QualysisClient(GenericInterface):
+class QualisysClient(GenericInterface):
     """
     Class for interfacing with the Qualisys system.
     """
@@ -34,10 +34,10 @@ class QualysisClient(GenericInterface):
             Whether to initialize the client now.
             Usefull if you want to pickle the interface as the Vicon SDK is not pickable (swig).
         """
-        super(QualysisClient, self).__init__(ip=ip, system_rate=system_rate, interface_type=InterfaceType.QualysisClient)
+        super(QualisysClient, self).__init__(ip=ip, system_rate=system_rate, interface_type=InterfaceType.QualysisClient)
         self.address =ip
         self.port= None
-        self.qualysis_client = None
+        self.qualisys_client = None
         self.acquisition_rate = None
         self.system_rate = system_rate
         self.devices = []
@@ -54,9 +54,9 @@ class QualysisClient(GenericInterface):
         """
 
         print(f"Connection to Qualisys DataStreamSDK at : {self.address} ...")
-        self.qualysis_client.Connect = await qtm_rt.connect(self.address)
-        if self.qualysis_client.Connect is None:
-            self.qualysis_client._update_state("Error","Failed to connect")
+        self.qualisys_client.Connect = await qtm_rt.connect(self.address)
+        if self.qualisys_client.Connect is None:
+            self.qualisys_client._update_state("Error","Failed to connect")
             return
 
         print("Connected to Qualisys")
@@ -72,6 +72,52 @@ class QualysisClient(GenericInterface):
 
 
     def add_device(
+        self,
+        nb_channels: int,
+        device_type: Union[DeviceType, str] = DeviceType.Emg,
+        data_buffer_size: int = None,
+        name: str = None,
+        rate: float = 2000,
+        device_range: tuple = None,
+        processing_method: Union[RealTimeProcessingMethod, OfflineProcessingMethod] = None,
+        **process_kwargs,
+    ):
+        """
+        Add a device to the Vicon system.
+
+        Parameters
+        ----------
+        nb_channels: int
+            Number of channels of the device.
+        device_type: Union[DeviceType, str]
+            Type of the device.
+        data_buffer_size: int
+            Size of the buffer for the device.
+        name: str
+            Name of the device.
+        rate: float
+            Rate of the device.
+        device_range: tuple
+            Range of the device.
+        processing_method : Union[RealTimeProcessingMethod, OfflineProcessingMethod]
+            Method used to process the data.
+        **process_kwargs
+            Keyword arguments for the processing method.
+        """
+        device_tmp = self._add_device(
+            nb_channels, device_type, name, rate, device_range, processing_method, **process_kwargs
+        )
+        device_tmp.interface = self.interface_type
+        if self.qualisys_client:
+            self.component.append('Analogue')
+            device_tmp.infos = None #Voir comment recuperer les info avec api qualisys
+        else: 
+            device_tmp.infos = None 
+
+        device_tmp.data_windows = data_buffer_size
+        self.devices.append(device_tmp)
+
+    def add_forceplate(
         self,
         nb_channels: int,
         device_type: Union[DeviceType, str] = DeviceType.ForcePlate,
@@ -109,11 +155,15 @@ class QualysisClient(GenericInterface):
         )
         device_tmp.interface = self.interface_type
         if self.qualisys_client:
-            device_tmp.infos = self.qualisys.(name)
-        else:
-            device_tmp.infos = None
+            self.component.append('Force')
+            device_tmp.infos = None #Voir comment recuperer les info avec api qualisys
+        else: 
+            device_tmp.infos = None 
+
         device_tmp.data_windows = data_buffer_size
         self.devices.append(device_tmp)
+ 
+
 
     def add_marker_set(
         self,
@@ -163,22 +213,22 @@ class QualysisClient(GenericInterface):
             kinematics_method=kinematics_method,
             **kin_method_kwargs,
         )
-        if self.vicon_client:
-            markers_tmp.subject_name = subject_name if subject_name else self.vicon_client.GetSubjectNames()[0]
-            markers_tmp.marker_names = (
-                self.vicon_client.GetMarkerNames(markers_tmp.subject_name) if not marker_names else marker_names
-            )
-            markers_tmp.marker_names = [name[0] for name in markers_tmp.marker_names]
-            if markers_tmp.nb_channels != len(markers_tmp.marker_names):
-                raise RuntimeError("Nb of marker not the same than markers on vicon.")
+        if self.qualisys_client:
+            markers_tmp.subject_name = subject_name #a changer quand je saurais comment recuperer nom du sujet avec qualisys
+            markers_tmp.marker_names = marker_names #a changer quand je saurais comment recuperer nom des marqueurs avec qualisys
+            self.component.append('3d')
         else:
             markers_tmp.subject_name = subject_name
             markers_tmp.marker_names = marker_names
         markers_tmp.data_windows = data_buffer_size
         self.marker_sets.append(markers_tmp)
+        
 
     @staticmethod
     def get_force_plate_data():
+        if qualisys_client
+        header, cameras = packet.get_2d_markers()
+            await headersPF, makers = get
         raise NotImplementedError("Force plate streaming is not implemented yet.")
 
     def get_device_data(
