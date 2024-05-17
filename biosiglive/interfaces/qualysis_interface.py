@@ -1,10 +1,11 @@
 """
-This file contains a wrapper for the python Vicon SDK.
+This file contains a wrapper for the python qualisys SDK.
 """
 from .param import *
 from typing import Union
 from .generic_interface import GenericInterface
 from ..enums import InverseKinematicsMethods, InterfaceType
+import xml.etree.ElementTree as ET
 
 try:
     import asyncio
@@ -32,7 +33,7 @@ class QualisysClient(GenericInterface):
             Port of the Qualisys software.
         init_now: bool
             Whether to initialize the client now.
-            Usefull if you want to pickle the interface as the Vicon SDK is not pickable (swig).
+            Usefull if you want to pickle the interface as the qualisys SDK is not pickable (swig).
         """
         super(QualisysClient, self).__init__(ip=ip, system_rate=system_rate, interface_type=InterfaceType.QualysisClient)
         self.address =ip
@@ -50,7 +51,7 @@ class QualisysClient(GenericInterface):
 
     def _init_client(self):
         """
-        Initialize the Vicon client.
+        Initialize the qualisys client.
         """
 
         print(f"Connection to Qualisys DataStreamSDK at : {self.address} ...")
@@ -62,15 +63,15 @@ class QualisysClient(GenericInterface):
         print("Connected to Qualisys")
         self.is_initialized = True
 
-""" pour le moment je ne trouver pas commetn avoir la Fs de Qualisys
-        if self.system_rate != self.qualisys_client.get_frame_rate():
+        xml_general = await self.qualisys_client.Connect.get_parameters(parameters=["general"])
+        generalinfo = ET.fromstring(xml_general) 
+        frame_rate = int(generalinfo.find('.//Frequency').text)
+        if self.system_rate != frame_rate():
             raise ValueError(
-                f"Vicon system rate ({self.qualisys_client.get_frame_rate()}) does not match the system rate "
+                f"qualisys system rate ({self.qualisys_client.get_frame_rate()}) does not match the system rate "
                 f"({self.system_rate})."
             )
-"""
-
-
+        
     def add_device(
         self,
         nb_channels: int,
@@ -83,7 +84,7 @@ class QualisysClient(GenericInterface):
         **process_kwargs,
     ):
         """
-        Add a device to the Vicon system.
+        Add a device to the qualisys system.
 
         Parameters
         ----------
@@ -109,8 +110,9 @@ class QualisysClient(GenericInterface):
         )
         device_tmp.interface = self.interface_type
         if self.qualisys_client:
-            self.component.append('Analogue')
-            device_tmp.infos = None #Voir comment recuperer les info avec api qualisys
+            self.component.append('Analog')
+            xml_analog = await self.qualisys_client.Connect.get_parameters(parameters=["analog"])
+            device_tmp.infos = ET.fromstring(xml_analog) 
         else: 
             device_tmp.infos = None 
 
@@ -119,8 +121,6 @@ class QualisysClient(GenericInterface):
 
     def add_forceplate(
         self,
-        nb_channels: int,
-        device_type: Union[DeviceType, str] = DeviceType.ForcePlate,
         data_buffer_size: int = None,
         name: str = None,
         rate: float = 2000,
@@ -129,7 +129,7 @@ class QualisysClient(GenericInterface):
         **process_kwargs,
     ):
         """
-        Add a device to the Vicon system.
+        Add a device to the qualisys system.
 
         Parameters
         ----------
@@ -150,18 +150,19 @@ class QualisysClient(GenericInterface):
         **process_kwargs
             Keyword arguments for the processing method.
         """
-        device_tmp = self._add_device(
-            nb_channels, device_type, name, rate, device_range, processing_method, **process_kwargs
+        force_tmp = self._add_forceplate(
+            name, rate, device_range, processing_method, **process_kwargs
         )
-        device_tmp.interface = self.interface_type
+        force_tmp.interface = self.interface_type
         if self.qualisys_client:
-            self.component.append('Force')
-            device_tmp.infos = None #Voir comment recuperer les info avec api qualisys
+            xml_force = await self.qualisys_client.Connect.get_parameters(parameters=["force"])
+            force_tmp.infos = ET.fromstring(xml_force)
+            self.component.append('force')
         else: 
-            device_tmp.infos = None 
+            force_tmp.infos = None 
 
-        device_tmp.data_windows = data_buffer_size
-        self.devices.append(device_tmp)
+        force_tmp.data_windows = data_buffer_size
+        self.force.append(force_tmp)
  
 
 
@@ -178,7 +179,7 @@ class QualisysClient(GenericInterface):
         **kin_method_kwargs,
     ):
         """
-        Add markers set to stream from the Vicon system.
+        Add markers set to stream from the qualisys system.
 
         Parameters
         ----------
@@ -215,7 +216,9 @@ class QualisysClient(GenericInterface):
         )
         if self.qualisys_client:
             markers_tmp.subject_name = subject_name #a changer quand je saurais comment recuperer nom du sujet avec qualisys
-            markers_tmp.marker_names = marker_names #a changer quand je saurais comment recuperer nom des marqueurs avec qualisys
+            xlm_mks = await connection.get_parameters(parameters=['3d'])
+            MksInfo = ET.fromstring(xlm_mks)
+            markers_tmp.marker_names =[label.find('Name').text for label in MksInfo.findall(".//Label")]
             self.component.append('3d')
         else:
             markers_tmp.subject_name = subject_name
@@ -225,17 +228,50 @@ class QualisysClient(GenericInterface):
         
 
     @staticmethod
-    def get_force_plate_data():
+    def get_force_plate_data(self, PF_name: Union[str, list] = "all", channel_idx: Union[int, list] = (), get_frame: bool = True):
         if qualisys_client
-        header, cameras = packet.get_2d_markers()
-            await headersPF, makers = get
+            headerf, forcespacket = self.packet.get_force()
+            PF_names=headerf #TODO change to be ok
+            if len(self.force) == 0:
+                raise ValueError("No PF has been added to the qualisys system.")
+            if not self.is_initialized:
+                raise RuntimeError("Qualisys client is not initialized.")
+            if get_frame:
+                self.packet.framenumber
+            all_device_data = []
+            if subject_name and isinstance(subject_name, list):
+                subject_name = [subject_name]
+            if PF_names and isinstance(PF_names, list):
+                PF_names = [PF_names]
+            all_force_data = []
+        
+
+            for PF in enumerate(forcespacket, 1):
+                forces.new_data = np.zeros((3, len(PF_names), self.packet.framenumber))
+                count = 0
+                for i, PF_name in enumerate(forcespacket, 1):
+                    forces_data_tmp = forcespacket #TO CHECK
+                    forces.new_data[:, count, :] = np.array(forces_data_tmp)[:, np.newaxis]
+                if PF_names:
+                    forces_data = np.zeros((3, len(force_names), forces.sample))
+                    for n, name in enumerate(forces.force_names):
+                        if name in force_names:
+                            forces_data[:, force_names.index(name), :] = forces.new_data[:, n, :]
+                    all_forces_data.append(forces_data)
+                else:
+                    all_forces_data.append(forces.new_data)
+
+                forces.append_data(forces.new_data)
+            if len(all_markers_data) == 1:
+                return all_markers_data[0]
+            return all_markers_data    
         raise NotImplementedError("Force plate streaming is not implemented yet.")
 
     def get_device_data(
         self, device_name: Union[str, list] = "all", channel_idx: Union[int, list] = (), get_frame: bool = True
     ):
         """
-        Get the device data from Vicon.
+        Get the device data from qualisys.
 
         Parameters
         ----------
@@ -244,7 +280,7 @@ class QualisysClient(GenericInterface):
         channel_idx: Union[int, str]
             Index of the channel to return.
         get_frame: bool
-            Whether to get a new frame from the Vicon system.
+            Whether to get a new frame from the qualisys system.
 
         Returns
         -------
@@ -252,23 +288,24 @@ class QualisysClient(GenericInterface):
             All asked device data.
         """
         if len(self.devices) == 0:
-            raise ValueError("No device has been added to the Vicon system.")
+            raise ValueError("No device has been added to the qualisys system.")
         if not self.is_initialized:
-            raise RuntimeError("Vicon client is not initialized.")
+            raise RuntimeError("Qualisys client is not initialized.")
         if get_frame:
-            self.get_frame()
+            self.packet.framenumber
         all_device_data = []
         if not isinstance(device_name, list):
             device_name = [device_name]
         if channel_idx and not isinstance(channel_idx, list):
             channel_idx = [channel_idx]
         device_data = []
+        headerdevice, Devicevalue = self.packet.get_analog
         for d, device in enumerate(self.devices):
             if device_name[0] == "all" or device.name in device_name:
                 device.new_data = np.zeros((device.nb_channels, device.sample))
                 count = 0
                 for output_name, channel_name, unit in device.infos:
-                    data_tmp, _ = self.vicon_client.GetDeviceOutputValues(device.name, output_name, channel_name)
+                    data_tmp, _ = self.packet.get_analog(device.name, output_name, channel_name)
                     device.new_data[count, :] = data_tmp
                     device.channel_names.append(channel_name)
                     count += 1
@@ -290,7 +327,7 @@ class QualisysClient(GenericInterface):
         self, subject_name: Union[str, list] = None, marker_names: Union[str, list] = None, get_frame: bool = True
     ):
         """
-        Get the markers data from Vicon.
+        Get the markers data from qualisys.
 
         Parameters
         ----------
@@ -307,18 +344,18 @@ class QualisysClient(GenericInterface):
             All asked markers data.
         """
         if len(self.marker_sets) == 0:
-            raise ValueError("No marker set has been added to the Vicon system.")
+            raise ValueError("No marker set has been added to the qualisys system.")
         if not self.is_initialized:
-            raise RuntimeError("Vicon client is not initialized.")
+            raise RuntimeError("qualisys client is not initialized.")
         if get_frame:
-            self.get_frame()
+            self.packet.framenumber
         if subject_name and isinstance(subject_name, list):
             subject_name = [subject_name]
         if marker_names and isinstance(marker_names, list):
             marker_names = [marker_names]
-        occluded = []
+        #occluded = []
         all_markers_data = []
-        all_occluded_data = []
+        #all_occluded_data = []
         if subject_name:
             marker_sets = [None] * len(subject_name)
             for s, marker_set in enumerate(self.marker_sets):
@@ -333,11 +370,9 @@ class QualisysClient(GenericInterface):
             markers.new_data = np.zeros((3, len(markers.marker_names), markers.sample))
             count = 0
             for m, marker_name in enumerate(markers.marker_names):
-                markers_data_tmp, occluded_tmp = self.vicon_client.GetMarkerGlobalTranslation(
-                    markers.subject_name, marker_name
-                )
+                header, markers_data_tmp= self.get_3d_markers() #TO check
                 markers.new_data[:, count, :] = np.array(markers_data_tmp)[:, np.newaxis]
-                occluded.append(occluded_tmp)
+                #occluded.append(occluded_tmp)
             if marker_names:
                 markers_data = np.zeros((3, len(marker_names), markers.sample))
                 for n, name in enumerate(markers.marker_names):
@@ -355,50 +390,58 @@ class QualisysClient(GenericInterface):
 
     def init_client(self):
         """
-        Initialize the Vicon client if it is not already initialized.
+        Initialize the Qualisys client if it is not already initialized.
         This function has to be called before get frame from interface.
         """
         if self.is_initialized:
-            raise RuntimeError("Vicon client is already initialized.")
+            raise RuntimeError("Qualisys client is already initialized.")
         else:
             self._init_client()
+            xlm_analog = await connection.get_parameters(parameters=['analog'])
+            AnalogInfo = ET.fromstring(xlm_analog)
             for d, device in enumerate(self.devices):
                 if not device.infos:
-                    device.infos = self.vicon_client.GetDeviceOutputDetails(device.name)
+                    device.infos = self.qualisys_client.GetDeviceOutputDetails(device.name) #a changer
+            
+            xlm_3d = await connection.get_parameters(parameters=['3d'])
+            MksInfo = ET.fromstring(xlm_3d)
+            nom_mks = [label.find('Name').text for label in MksInfo.findall(".//Label")]
             for m, marker_set in enumerate(self.marker_sets):
                 if not marker_set.markers_names:
-                    marker_set.markers_names = self.vicon_client.GetMarkerNames(marker_set.subject_name)
+                    marker_set.markers_names = [label.find('Name').text for label in MksInfo.findall(".//Label")]
                 if not marker_set.subject_name:
-                    marker_set.subject_name = self.vicon_client.GetSubjectNames()[0]
+                    marker_set.subject_name = [label.find('Name').text for label in MksInfo.findall(".//Label")]
 
     def get_latency(self) -> float:
         """
-        Get the latency between the Vicon system and the Vicon SDK.
+        Get the latency between the qualisys system and the qualisys SDK.
 
         Returns
         -------
         latency: float
-            Latency between the Vicon system and the Vicon SDK.
+            Latency between the qualisys system and the qualisys SDK.
         """
         if not self.is_initialized:
-            raise RuntimeError("Vicon client is not initialized.")
-        return self.vicon_client.GetLatencyTotal()
+            raise RuntimeError("qualisys client is not initialized.")
+        return self.qualisys_client=0 #TODO voir comment obtenir la latence
 
     def get_frame(self) -> bool:
         """
-        Get a new frame from the Vicon system.
+        Get a new frame from the qualisys system.
 
         Returns
         -------
         bool
             True if there is a frame, False otherwise.
         """
+        """
         if not self.is_initialized:
-            raise RuntimeError("Vicon client is not initialized.")
-        self.is_frame = self.vicon_client.GetFrame()
+            raise RuntimeError("qualisys client is not initialized.")
+        self.is_frame = self.qualisys_client.GetFrame()
         while self.is_frame is not True:
-            self.is_frame = self.vicon_client.GetFrame()
+            self.is_frame = self.qualisys_client.GetFrame()
         return self.is_frame
+        """ #TODO
 
     def get_frame_number(self) -> int:
         """
@@ -410,8 +453,8 @@ class QualisysClient(GenericInterface):
             Last frame number.
         """
         if not self.is_initialized:
-            raise RuntimeError("Vicon client is not initialized.")
-        return self.vicon_client.GetFrameNumber()
+            raise RuntimeError("qualisys client is not initialized.")
+        return self.packet.framenumber
 
     def get_kinematics_from_markers(
         self,
