@@ -351,9 +351,9 @@ class QualisysClient(GenericInterface):
             subject_name = [subject_name]
         if marker_names and isinstance(marker_names, list):
             marker_names = [marker_names]
-        occluded = []
+        #occluded = []
         all_markers_data = []
-        all_occluded_data = []
+        #all_occluded_data = []
         if subject_name:
             marker_sets = [None] * len(subject_name)
             for s, marker_set in enumerate(self.marker_sets):
@@ -372,7 +372,7 @@ class QualisysClient(GenericInterface):
             for m, marker_name in enumerate(markers.marker_names):
                 markers_data_tmp=allmarkers_data_tmp[m][:]
                 markers.new_data[:, count, :] = np.array(markers_data_tmp)[:, np.newaxis]
-                occluded.append(occluded_tmp)
+                #occluded.append(occluded_tmp)
             if marker_names:
                 markers_data = np.zeros((3, len(marker_names), markers.sample))
                 for n, name in enumerate(markers.marker_names):
