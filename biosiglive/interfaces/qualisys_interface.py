@@ -36,16 +36,19 @@ class QualisysClient(GenericInterface):
             Usefull if you want to pickle the interface as the qualisys SDK is not pickable (swig).
         """
         super(QualisysClient, self).__init__(ip=ip, system_rate=system_rate, interface_type=InterfaceType.QualisysClient)
-        self.address =ip
-        self.port= port
+        self.address = ip
+        self.port = port
         self.qualisys_client = None
         self.acquisition_rate = None
         self.system_rate = system_rate
         self.devices = []
+        self.forces = []
         self.imu = []
         self.marker_sets = []
+        self.force_plates = []
         self.is_frame = False
         self.is_initialized = False
+        self.component = []
         if init_now:
             asyncio.create_task(self._init_client())
 
@@ -53,34 +56,43 @@ class QualisysClient(GenericInterface):
     async def _init_client(self):
         """
         Initialize the qualisys client.
+
         """
-        print(f"Connection to Qualisys DataStreamSDK at : {self.address} ...")
-        self.qualisys_client.Connect = await qtm_rt.connect(self.address)
-        if self.qualisys_client.Connect is None:
+        print(f"Connection to Qualisys DataStreamSDK at : {self.ip} ...")
+        self.Connect = await qtm_rt.connect("192.168.254.1")
+        if self.Connect is None:
             print("Error","Failed to connect")
             return
 
         print("Connected to Qualisys")
         self.is_initialized = True
+        self.qualisys_client = True
 
-        xml_general = await self.qualisys_client.Connect.get_parameters(parameters=["general"])
+        xml_general = await self.Connect.get_parameters(parameters=["general"])
         generalinfo = ET.fromstring(xml_general) 
         frame_rate = int(generalinfo.find('.//Frequency').text)
-        if self.system_rate != frame_rate():
+        if self.system_rate != frame_rate:
             raise ValueError(
-                f"qualisys system rate ({self.qualisys_client.get_frame_rate()}) does not match the system rate "
+                f"qualisys system rate ({frame_rate}) does not match the system rate "
                 f"({self.system_rate})."
             )
 
-    async def create(cls, ip="192.168.254.1", system_rate=100, port=22224):
-        self = cls(ip, system_rate, init_now=False)
+    @classmethod
+    async def create(cls, system_rate=100, ip="192.168.254.1", port=22224):
+        self = cls(system_rate, ip, port, init_now=False)
         await self._init_client()
         return self
+
+    def _update_state(self, statuts, message):
+        print(f"Status: {status}, Message: {message}")
+
+    def _display_info(self):
+        print(f"IP: {self.ip}")
 
     async def add_device(
         self,
         nb_channels: int,
-        device_type: Union[DeviceType, str] = DeviceType.Emg,
+        device_type: Union[DeviceType, str] = DeviceType.ForcePlate,
         data_buffer_size: int = None,
         name: str = None,
         rate: float = 2000,
@@ -115,25 +127,41 @@ class QualisysClient(GenericInterface):
         )
         device_tmp.interface = self.interface_type
         if self.qualisys_client:
-            self.component.append('Analog')
-            xml_analog = await self.qualisys_client.Connect.get_parameters(parameters=["analog"])
-            device_tmp.infos = ET.fromstring(xml_analog) 
+            if DeviceType.ForcePlate:
+                self.component.append('Force')
+                xml_force = await self.Connect.get_parameters(parameters=["force"])
+                ForceInfo = ET.fromstring(xml_force)
+                device_tmp.infos = ForceInfo
+                device_tmp.data_windows = data_buffer_size
+                device_tmp.name = [label.find('Name').text for label in ForceInfo.findall(".//Plate")]
+                #device_tmp.infos.unit = ForceInfo.find('.//Unit_Force').text
+                device_tmp.rate = ForceInfo.find('.//Frequency').text
+
+                self.forces.append(device_tmp)
+            else:
+                self.component.append('Analog')
+                xml_analog = await self.Connect.get_parameters(parameters=["analog"])
+                device_tmp.infos = ET.fromstring(xml_analog)
+                device_tmp.data_windows = data_buffer_size
+                self.devices.append(device_tmp)
         else: 
-            device_tmp.infos = None 
+            device_tmp.infos = None
+            device_tmp.data_windows = data_buffer_size
+            self.devices.append(device_tmp)
 
-        device_tmp.data_windows = data_buffer_size
-        self.devices.append(device_tmp)
-
+    """
     async def add_forceplate(
         self,
         data_buffer_size: int = None,
         name: str = None,
-        rate: float = 2000,
-        device_range: tuple = None,
+        rate: float = 1000,
+        unit: str = "N",
+        force_range: tuple = None,
         processing_method: Union[RealTimeProcessingMethod, OfflineProcessingMethod] = None,
         **process_kwargs,
     ):
-        """
+    """
+    """
         Add a device to the qualisys system.
 
         Parameters
@@ -154,22 +182,30 @@ class QualisysClient(GenericInterface):
             Method used to process the data.
         **process_kwargs
             Keyword arguments for the processing method.
-        """
-        force_tmp = self._add_forceplate(
-            name, rate, device_range, processing_method, **process_kwargs
-        )
-        force_tmp.interface = self.interface_type
+    """
+    """
+        forceplate_tmp = self._add_forceplate(
+            nb_forceplate=nb_forceplate,
+            name=name,
+            marker_names=plate_names,
+            rate=rate,
+            **kin_method_kwargs,
+            )
+
+        forceplate_tmp.interface = self.interface_type
         if self.qualisys_client:
-            xml_force = await self.qualisys_client.Connect.get_parameters(parameters=["force"])
-            force_tmp.infos = ET.fromstring(xml_force)
+            xml_force = await self.Connect.get_parameters(parameters=["force"])
+            forceplate_tmp.infos = ET.fromstring(xml_force)
+            forceplate_tmp.unit_forceplate = ForceInfo.find('.//Unit_Force').text
+            forceplate_tmp.forces_names = [label.find('Name').text for label in ForceInfo.findall(".//Plate")]
             self.component.append('force')
-        else: 
-            force_tmp.infos = None 
+        else:
+            forceplate_tmp.infos = None
+            forceplate_tmp.forces_names = name
 
-        force_tmp.data_windows = data_buffer_size
-        self.force.append(force_tmp)
- 
-
+        forceplate_tmp.data_windows = data_buffer_size
+        self.forces.append(forceplate_tmp)
+    """
 
     async def add_marker_set(
         self,
@@ -221,48 +257,48 @@ class QualisysClient(GenericInterface):
         )
         if self.qualisys_client:
             markers_tmp.subject_name = subject_name #a changer quand je saurais comment recuperer nom du sujet avec qualisys
-            xlm_mks = await connection.get_parameters(parameters=['3d'])
+            xlm_mks = await self.Connect.get_parameters(parameters=['3d'])
             MksInfo = ET.fromstring(xlm_mks)
             markers_tmp.marker_names =[label.find('Name').text for label in MksInfo.findall(".//Label")]
             self.component.append('3d')
+            self.component.append('3dnolabels')
         else:
             markers_tmp.subject_name = subject_name
             markers_tmp.marker_names = marker_names
         markers_tmp.data_windows = data_buffer_size
         self.marker_sets.append(markers_tmp)
-        
 
-    @staticmethod
-    async def get_force_plate_data(self, PF_name: Union[str, list] = "all", channel_idx: Union[int, list] = (), get_frame: bool = True):
-        if qualisys_client:
-            headerf, forcespacket = self.packet.get_force()
-            PF_names=headerf #TODO change to be ok
-            if len(self.force) == 0:
-                raise ValueError("No PF has been added to the qualisys system.")
-            if not self.is_initialized:
-                raise RuntimeError("Qualisys client is not initialized.")
-            if get_frame:
-                self.packet.framenumber
-            all_device_data = []
-            if subject_name and isinstance(subject_name, list):
-                subject_name = [subject_name]
-            if PF_names and isinstance(PF_names, list):
-                PF_names = [PF_names]
-            all_force_data = []
-        
+    async def get_force_plate_data(
+            self, forceplate_name: Union[str, list] = "all", get_frame: bool = True, packet=[]
+    ):
+        if len(self.forces) == 0:
+            raise ValueError("No force has been added to the qualisys system.")
+        if not self.is_initialized:
+            raise RuntimeError("Qualisys client is not initialized.")
+        if get_frame:
+            packet.framenumber
+        headerf, forcesdata = packet.get_force()
+        all_forces_data = []
+        forcedata = []
+        if (forcesdata[0][0].force_count) != 0:
 
-            for PF in enumerate(forcespacket, 1):
-                forces.new_data = np.zeros((3, len(PF_names), self.packet.framenumber))
-                count = 0
-                for i, PF_name in enumerate(forcespacket, 1):
-                    forces_data_tmp = forcespacket[i][:] #TO CHECK
-                    forces.new_data[:, count, :] = np.array(forces_data_tmp)[:, np.newaxis]
-                all_forces_data.append(forces.new_data)
-                forces.append_data(forces.new_data)
-            if len(all_forces_data) == 1:
-                return all_forces_data[0]
-            return all_forces_data    
-        raise NotImplementedError("Force plate streaming is not implemented yet.")
+            Device.new_data = np.zeros((9, headerf.plate_count, packet.framenumber))
+            for frame in range(forcesdata[0][0].force_count):
+                for platenum in range(headerf.plate_count):
+                    forcedata = forcesdata[platenum][1][frame]
+                    forces_data_tmp = [forcedata.x, forcedata.y, forcedata.z,
+                                       forcedata.x_m, forcedata.y_m, forcedata.z_m,
+                                       forcedata.x_a, forcedata.y_a, forcedata.z_a]
+
+                    Device.new_data[:, platenum, :] = np.array(forces_data_tmp)[:, np.newaxis]
+
+            all_forces_data.append(Device.new_data)
+            #Device.append_data(Device.new_data)
+
+        if len(all_forces_data) == 1:
+            return all_forces_data[0]
+        return all_forces_data
+
 
     async def get_device_data(
         self, device_name: Union[str, list] = "all", channel_idx: Union[int, list] = (), get_frame: bool = True
@@ -296,7 +332,7 @@ class QualisysClient(GenericInterface):
         if channel_idx and not isinstance(channel_idx, list):
             channel_idx = [channel_idx]
         device_data = []
-        headerdevice, Devicevalue = self.packet.get_analog
+        headerdevice, Devicevalue = self.packet.get_analog()
         for d, device in enumerate(self.devices):
             if device_name[0] == "all" or device.name in device_name:
                 device.new_data = np.zeros((device.nb_channels, device.sample))
@@ -321,7 +357,7 @@ class QualisysClient(GenericInterface):
         return all_device_data
 
     async def get_marker_set_data(
-        self, subject_name: Union[str, list] = None, marker_names: Union[str, list] = None, get_frame: bool = True
+        self, subject_name: Union[str, list] = None, marker_names: Union[str, list] = None, get_frame: bool = True, packet = None
     ):
         """
         Get the markers data from qualisys.
@@ -340,13 +376,13 @@ class QualisysClient(GenericInterface):
         markers_data: list
             All asked markers data.
         """
-        await self.connection.stream_frames(components=self.component, on_packet=queue.put_nowait)
+
         if len(self.marker_sets) == 0:
             raise ValueError("No marker set has been added to the qualisys system.")
         if not self.is_initialized:
             raise RuntimeError("qualisys client is not initialized.")
         if get_frame:
-            self.packet.framenumber
+            packet.framenumber
         if subject_name and isinstance(subject_name, list):
             subject_name = [subject_name]
         if marker_names and isinstance(marker_names, list):
@@ -367,25 +403,19 @@ class QualisysClient(GenericInterface):
         for markers in marker_sets:
             markers.new_data = np.zeros((3, len(markers.marker_names), markers.sample))
             count = 0
-            header, allmarkers_data_tmp= self.get_3d_markers() #TO check
-            get_3d_markers_no_label
+            header, allmarkers_data_tmp= packet.get_3d_markers() #TO check
+            #headernolabel, allmarkersnolabel_data_tmp= packet.get_3d_markers_no_label
             for m, marker_name in enumerate(markers.marker_names):
                 markers_data_tmp=allmarkers_data_tmp[m][:]
-                markers.new_data[:, count, :] = np.array(markers_data_tmp)[:, np.newaxis]
+                markers.new_data[:, m, :] = np.array(markers_data_tmp)[:, np.newaxis]
                 #occluded.append(occluded_tmp)
-            if marker_names:
-                markers_data = np.zeros((3, len(marker_names), markers.sample))
-                for n, name in enumerate(markers.marker_names):
-                    if name in marker_names:
-                        markers_data[:, marker_names.index(name), :] = markers.new_data[:, n, :]
-                all_markers_data.append(markers_data)
-            else:
-                all_markers_data.append(markers.new_data)
+
+            all_markers_data.append(markers.new_data)
             markers.append_data(markers.new_data)
-            all_occluded_data.append(occluded)
+            #all_occluded_data.append(occluded)
         if len(all_markers_data) == 1:
-            return all_markers_data[0], all_occluded_data[0]
-        return all_markers_data, all_occluded_data
+            return all_markers_data[0] #, all_occluded_data[0]
+        return all_markers_data #, all_occluded_data
 
     async def init_client(self):
         """
@@ -396,13 +426,13 @@ class QualisysClient(GenericInterface):
             raise RuntimeError("Qualisys client is already initialized.")
         else:
             self._init_client()
-            xlm_analog = await connection.get_parameters(parameters=['analog'])
+            xlm_analog = await self.Connect.get_parameters(parameters=['analog'])
             AnalogInfo = ET.fromstring(xlm_analog)
             for d, device in enumerate(self.devices):
                 if not device.infos:
                     device.infos = self.qualisys_client.GetDeviceOutputDetails(device.name) #a changer
             
-            xlm_3d = await connection.get_parameters(parameters=['3d'])
+            xlm_3d = await self.Connect.get_parameters(parameters=['3d'])
             MksInfo = ET.fromstring(xlm_3d)
             nom_mks = [label.find('Name').text for label in MksInfo.findall(".//Label")]
             for m, marker_set in enumerate(self.marker_sets):
