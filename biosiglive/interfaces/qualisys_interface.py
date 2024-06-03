@@ -6,6 +6,7 @@ from typing import Union
 from .generic_interface import GenericInterface
 from ..enums import InverseKinematicsMethods, InterfaceType
 import xml.etree.ElementTree as ET
+import numpy as np
 
 try:
     import asyncio
@@ -50,7 +51,7 @@ class QualisysClient(GenericInterface):
         self.is_initialized = False
         self.component = []
         if init_now:
-            asyncio.create_task(self._init_client())
+            asyncio.run(self._init_client())
 
 
     async def _init_client(self):
@@ -58,7 +59,7 @@ class QualisysClient(GenericInterface):
         Initialize the qualisys client.
 
         """
-        print(f"Connection to Qualisys DataStreamSDK at : {self.ip} ...")
+        print(f"Connection to Qualisys DataStreamSDK at : {self.address} ...")
         self.Connect = await qtm_rt.connect("192.168.254.1")
         if self.Connect is None:
             print("Error","Failed to connect")
@@ -82,12 +83,6 @@ class QualisysClient(GenericInterface):
         self = cls(system_rate, ip, port, init_now=False)
         await self._init_client()
         return self
-
-    def _update_state(self, statuts, message):
-        print(f"Status: {status}, Message: {message}")
-
-    def _display_info(self):
-        print(f"IP: {self.ip}")
 
     async def add_device(
         self,
@@ -136,7 +131,6 @@ class QualisysClient(GenericInterface):
                 device_tmp.name = [label.find('Name').text for label in ForceInfo.findall(".//Plate")]
                 #device_tmp.infos.unit = ForceInfo.find('.//Unit_Force').text
                 device_tmp.rate = ForceInfo.find('.//Frequency').text
-
                 self.forces.append(device_tmp)
             else:
                 self.component.append('Analog')
@@ -268,8 +262,8 @@ class QualisysClient(GenericInterface):
         markers_tmp.data_windows = data_buffer_size
         self.marker_sets.append(markers_tmp)
 
-    async def get_force_plate_data(
-            self, forceplate_name: Union[str, list] = "all", get_frame: bool = True, packet=[]
+    def get_force_plate_data(
+            self, forceplate_name: Union[str, list] = "all", get_frame: bool = True, packet=None
     ):
         if len(self.forces) == 0:
             raise ValueError("No force has been added to the qualisys system.")
@@ -278,29 +272,29 @@ class QualisysClient(GenericInterface):
         if get_frame:
             packet.framenumber
         headerf, forcesdata = packet.get_force()
+
         all_forces_data = []
-        forcedata = []
         if (forcesdata[0][0].force_count) != 0:
 
             Device.new_data = np.zeros((9, headerf.plate_count, packet.framenumber))
-            for frame in range(forcesdata[0][0].force_count):
-                for platenum in range(headerf.plate_count):
-                    forcedata = forcesdata[platenum][1][frame]
-                    forces_data_tmp = [forcedata.x, forcedata.y, forcedata.z,
-                                       forcedata.x_m, forcedata.y_m, forcedata.z_m,
-                                       forcedata.x_a, forcedata.y_a, forcedata.z_a]
+            #for frame in range(forcesdata[0][0].force_count):
+            for platenum in range(headerf.plate_count):
+                forcedata = forcesdata[platenum][1][-1]
+                forces_data_tmp = [forcedata.x, forcedata.y, forcedata.z,
+                                    forcedata.x_m, forcedata.y_m, forcedata.z_m,
+                                    forcedata.x_a, forcedata.y_a, forcedata.z_a]
 
-                    Device.new_data[:, platenum, :] = np.array(forces_data_tmp)[:, np.newaxis]
+                Device.new_data[:, platenum, :] = np.array(forces_data_tmp)[:, np.newaxis]
 
             all_forces_data.append(Device.new_data)
             #Device.append_data(Device.new_data)
-
+        #print(packet.timestamp)
         if len(all_forces_data) == 1:
             return all_forces_data[0]
         return all_forces_data
 
 
-    async def get_device_data(
+    def get_device_data(
         self, device_name: Union[str, list] = "all", channel_idx: Union[int, list] = (), get_frame: bool = True
     ):
         """
@@ -356,7 +350,7 @@ class QualisysClient(GenericInterface):
             return all_device_data[0]
         return all_device_data
 
-    async def get_marker_set_data(
+    def get_marker_set_data(
         self, subject_name: Union[str, list] = None, marker_names: Union[str, list] = None, get_frame: bool = True, packet = None
     ):
         """
@@ -414,6 +408,8 @@ class QualisysClient(GenericInterface):
             markers.append_data(markers.new_data)
             #all_occluded_data.append(occluded)
         if len(all_markers_data) == 1:
+            #print(packet.framenumber)
+            #print(packet.timestamp)
             return all_markers_data[0] #, all_occluded_data[0]
         return all_markers_data #, all_occluded_data
 

@@ -27,22 +27,25 @@ import logging
 import xml.etree.ElementTree as ET
 import qtm_rt
 import numpy as np
+from collections import deque
 
 
 async def setup():
     """ main function """
+    # Connection to qualisys
     interface = await QualisysClient.create(ip="192.168.254.1", system_rate=100, port=22224)
-    interface._display_info()
-
     queue = asyncio.Queue()
+
+    # Add info needed
     n_markers = 4
     await interface.add_marker_set(
-        nb_markers=n_markers, data_buffer_size=100, marker_data_file_key="markers", name="markers", rate=100, unit="mm"
+        nb_markers=n_markers, data_buffer_size=1000, marker_data_file_key="markers", name="markers", rate=100, unit="mm"
     )
     await interface.add_device(
         nb_channels=12,
         device_type="force_plate",
         name="force_plate",
+        data_buffer_size=100,
         rate=1000,
         device_data_file_key="force_plate",
         processing_method=None,
@@ -50,46 +53,55 @@ async def setup():
     )
 
 
+    # Plot init
     marker_plot = LivePlot(name="markers", plot_type=PlotType.Scatter3D)
     marker_plot.init()
     force1_plot = LivePlot(
-        name="force", rate=100, plot_type=PlotType.Curve, nb_subplots=3
+        name="force", rate=1000, plot_type=PlotType.Curve, nb_subplots=3
     )
-    force1_plot.init(plot_windows=500, y_labels="Force (N)")
-
+    force1_plot.init(plot_windows=1000, y_labels="Force (N)")
     force2_plot = LivePlot(
-        name="force", rate=100, plot_type=PlotType.Curve, nb_subplots=3
+        name="force", rate=1000, plot_type=PlotType.Curve, nb_subplots=3
     )
-    force2_plot.init(plot_windows=500, y_labels="Force (N)")
-    time_to_sleep = 1 / 1000
+    force2_plot.init(plot_windows=1000, y_labels="Force (N)")
+
+
+    time_to_sleep = 1 / 200
+    mark_all = deque(maxlen=1000)
     offline_count = 0
     mark_to_plot = []
+    mark_all=np.zeros((3, 4, 1))
 
-    await interface.Connect.stream_frames(components=interface.component, on_packet=queue.put_nowait)
 
     while True:
-        tic = time()
-        packet = await queue.get()
-        if packet is None:
-            break
+        tic = asyncio.get_event_loop().time()
+        packet = await interface.Connect.get_current_frame(components=interface.component)
 
-        mark_tmp = await interface.get_marker_set_data(packet=packet)
+        #data recuperation
+        mark_tmp = interface.get_marker_set_data(packet=packet)
         mark_tmp = mark_tmp / 1000
-        marker_plot.update(mark_tmp[:, :, -1].T, size=0.03)
-        force_tmp = await interface.get_force_plate_data(packet=packet)
+        mark_all = np.append(mark_all,mark_tmp,axis=2)
+
+        force_tmp = interface.get_force_plate_data(packet=packet)
+
+        # data plot
+        marker_plot.update(mark_tmp[:, :, -1].T, size=0.1)
         if (len(force_tmp)) != 0:
             force1_plot.update(np.array(force_tmp[0:3, 0, -1:]))
             force2_plot.update(np.array(force_tmp[0:3, 1, -1:]))
-        loop_time = time() - tic
+
+        # time laps
+        loop_time = asyncio.get_event_loop().time() - tic
         real_time_to_sleep = time_to_sleep - loop_time
         if real_time_to_sleep > 0:
-            sleep(real_time_to_sleep)
+            await asyncio.sleep(real_time_to_sleep)
 
 
 
 if __name__ == "__main__":
-    #asyncio.run(setup())
-
+    asyncio.run(setup())
+    """"
     loop = asyncio.get_event_loop()
     asyncio.ensure_future(setup())
     loop.run_forever()
+    """
