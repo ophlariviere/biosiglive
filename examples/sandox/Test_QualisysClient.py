@@ -59,11 +59,11 @@ async def setup():
     force1_plot = LivePlot(
         name="force", rate=1000, plot_type=PlotType.Curve, nb_subplots=3
     )
-    force1_plot.init(plot_windows=1000, y_labels="Force (N)")
+    force1_plot.init(plot_windows=10000, y_labels="Force (N)")
     force2_plot = LivePlot(
         name="force", rate=1000, plot_type=PlotType.Curve, nb_subplots=3
     )
-    force2_plot.init(plot_windows=1000, y_labels="Force (N)")
+    force2_plot.init(plot_windows=10000, y_labels="Force (N)")
 
 
     time_to_sleep = 1 / 200
@@ -80,15 +80,16 @@ async def setup():
         #data recuperation
         mark_tmp = interface.get_marker_set_data(packet=packet)
         mark_tmp = mark_tmp / 1000
-        mark_all = np.append(mark_all,mark_tmp,axis=2)
+        mark_all = np.append(mark_all,mark_tmp, axis=2)
 
         force_tmp = interface.get_force_plate_data(packet=packet)
 
         # data plot
         marker_plot.update(mark_tmp[:, :, -1].T, size=0.1)
+
         if (len(force_tmp)) != 0:
-            force1_plot.update(np.array(force_tmp[0:3, 0, -1:]))
-            force2_plot.update(np.array(force_tmp[0:3, 1, -1:]))
+            force1_plot.update(force_tmp[0][:3, -1:])
+            force2_plot.update(force_tmp[1][:3, -1:])
 
         # time laps
         loop_time = asyncio.get_event_loop().time() - tic

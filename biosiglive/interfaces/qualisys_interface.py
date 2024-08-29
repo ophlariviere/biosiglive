@@ -273,25 +273,44 @@ class QualisysClient(GenericInterface):
             packet.framenumber
         headerf, forcesdata = packet.get_force()
 
-        all_forces_data = []
+        all_forces_data = np.empty([len(forcesdata),9,1])
         if (forcesdata[0][0].force_count) != 0:
+            for platenum in range(len(forcesdata)):
+                PFForce = forcesdata[platenum][1]
+                new_data = np.zeros((9, len(PFForce)))
+                data_tmp = np.array(PFForce)
+                data_tmp = data_tmp.T
+                count = 0
+                channel_name = ['Force_x','Force_y','Force_z','Moment_x','Moment_y','Moment_z','CoP_x','CoP_y','CoP_z'];
+                unit = ['N', 'N', 'N', 'Nmm', 'Nmm', 'Nmm', 'mm', 'mm', 'mm']
+                for i in range(9):
+                    new_data[count, :] = data_tmp[count]
+                    count += 1
+                    if count == 9:
+                        break
+                #allonepfdata = all_forces_data[platenum]
+                #allonepfdata + new_data
+                all_forces_data[platenum] = new_data
+        return all_forces_data
 
+        """
             Device.new_data = np.zeros((9, headerf.plate_count, packet.framenumber))
             #for frame in range(forcesdata[0][0].force_count):
             for platenum in range(headerf.plate_count):
-                forcedata = forcesdata[platenum][1][-1]
-                forces_data_tmp = [forcedata.x, forcedata.y, forcedata.z,
+                if forcesdata[platenum][0].force_count!= 0:
+                    forcedata = forcesdata[platenum][1][-1]
+                    forces_data_tmp = [forcedata.x, forcedata.y, forcedata.z,
                                     forcedata.x_m, forcedata.y_m, forcedata.z_m,
                                     forcedata.x_a, forcedata.y_a, forcedata.z_a]
 
-                Device.new_data[:, platenum, :] = np.array(forces_data_tmp)[:, np.newaxis]
+                    Device.new_data[:, platenum, :] = np.array(forces_data_tmp)[:, np.newaxis]
 
-            all_forces_data.append(Device.new_data)
-            #Device.append_data(Device.new_data)
-        #print(packet.timestamp)
+                    all_forces_data.append(Device.new_data)
+
         if len(all_forces_data) == 1:
             return all_forces_data[0]
         return all_forces_data
+        """
 
 
     def get_device_data(
