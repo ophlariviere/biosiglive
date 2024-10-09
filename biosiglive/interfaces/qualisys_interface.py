@@ -272,25 +272,19 @@ class QualisysClient(GenericInterface):
         if get_frame:
             packet.framenumber
         headerf, forcesdata = packet.get_force()
-
-        all_forces_data = np.empty([len(forcesdata),9,1])
+        new_data=np.zeros([18,len(forcesdata[0][1])])
+        all_forces_data = np.empty([18,1])
+        channel_name = ['Force_x', 'Force_y', 'Force_z', 'Moment_x', 'Moment_y', 'Moment_z', 'CoP_x', 'CoP_y', 'CoP_z'];
+        unit = ['N', 'N', 'N', 'Nmm', 'Nmm', 'Nmm', 'mm', 'mm', 'mm']
         if (forcesdata[0][0].force_count) != 0:
             for platenum in range(len(forcesdata)):
                 PFForce = forcesdata[platenum][1]
-                new_data = np.zeros((9, len(PFForce)))
-                data_tmp = np.array(PFForce)
-                data_tmp = data_tmp.T
-                count = 0
-                channel_name = ['Force_x','Force_y','Force_z','Moment_x','Moment_y','Moment_z','CoP_x','CoP_y','CoP_z'];
-                unit = ['N', 'N', 'N', 'Nmm', 'Nmm', 'Nmm', 'mm', 'mm', 'mm']
-                for i in range(9):
-                    new_data[count, :] = data_tmp[count]
-                    count += 1
-                    if count == 9:
-                        break
-                #allonepfdata = all_forces_data[platenum]
-                #allonepfdata + new_data
-                all_forces_data[platenum] = new_data
+                for subframe in range(len(PFForce)):
+                    data_tmp=PFForce[subframe]
+
+                    new_data[9*platenum:9*platenum+9, subframe] = [data_tmp.x, data_tmp.y, data_tmp.z, data_tmp.x_m, data_tmp.y_m, data_tmp.z_m, data_tmp.x_a, data_tmp.y_a, data_tmp.z_a]
+
+            all_forces_data = new_data
         return all_forces_data
 
         """
