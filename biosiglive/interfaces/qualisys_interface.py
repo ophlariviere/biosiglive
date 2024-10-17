@@ -254,6 +254,7 @@ class QualisysClient(GenericInterface):
             xlm_mks = await self.Connect.get_parameters(parameters=['3d'])
             MksInfo = ET.fromstring(xlm_mks)
             markers_tmp.marker_names =[label.find('Name').text for label in MksInfo.findall(".//Label")]
+            self.marker_names=markers_tmp.marker_names
             self.component.append('3d')
             self.component.append('3dnolabels')
         else:
@@ -423,7 +424,7 @@ class QualisysClient(GenericInterface):
         if len(all_markers_data) == 1:
             #print(packet.framenumber)
             #print(packet.timestamp)
-            return all_markers_data[0] #, all_occluded_data[0]
+            return all_markers_data[0], self.marker_name #, all_occluded_data[0]
         return all_markers_data #, all_occluded_data
 
     async def init_client(self):
