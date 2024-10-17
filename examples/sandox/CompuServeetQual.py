@@ -35,6 +35,10 @@ def detect_start(previous_f_z, current_f_z, threshold=30):
     # Détection du passage de inférieur à supérieur au seuil
     return previous_f_z <= threshold < current_f_z
 
+
+
+
+
 class RealTimeDataProcessor:
     def __init__(self, server_ip="192.168.0.1", port=7,
                  threshold=30, system_rate=100, device_rate=2000, nb_markers=4, nb_seconds=1):
@@ -45,6 +49,10 @@ class RealTimeDataProcessor:
         self.sending_started = False
         self.previous_fz = 0
         self.threshold = threshold
+
+    def load_markers_names(self):
+        tmp = load("C:\\Users\\irisse-q\\Desktop\\Florian\\DATA\\LAO_01\\Venue2\\AQM\\LAO_01_Cond0007.qtm")
+        return tmp['makers_names'].data[0:self.nb_markers].tolist()
 
     async def setup(self):
         """ main function """
@@ -73,8 +81,8 @@ class RealTimeDataProcessor:
             packet = await self.interface.Connect.get_current_frame(components=self.interface.component)
 
             #data recuperation
-            mark_tmp = self.interface.get_marker_set_data(packet=packet)
-            mark_tmp = mark_tmp
+            mark_tmp, mks_name = self.interface.get_marker_set_data(packet=packet)
+
 
             dataforce = self.interface.get_force_plate_data(packet=packet)
 
@@ -84,13 +92,14 @@ class RealTimeDataProcessor:
                 self.sending_started = True
                 print("Démarrage de l'envoi des données.")
 
+
             elif self.sending_started:
                 connection, message = self.server.client_listening()  # Non-bloquant
                 if connection:
                     dataAll = {
                         "Force": dataforce,
                         "Markers": mark_tmp,
-                        "MarkersNames": self.mks_name
+                        "MarkersNames": mks_name,
                     }
                     # "Angle": Q[:, -1],
                     self.server.send_data(dataAll, connection, message)

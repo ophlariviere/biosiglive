@@ -424,8 +424,8 @@ class QualisysClient(GenericInterface):
         if len(all_markers_data) == 1:
             #print(packet.framenumber)
             #print(packet.timestamp)
-            return all_markers_data[0], self.marker_name #, all_occluded_data[0]
-        return all_markers_data #, all_occluded_data
+            return all_markers_data[0], self.marker_names #, all_occluded_data[0]
+        return all_markers_data.marker_names  #, all_occluded_data
 
     async def init_client(self):
         """
