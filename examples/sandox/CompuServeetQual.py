@@ -61,7 +61,7 @@ class RealTimeDataProcessor:
         queue = asyncio.Queue()
 
         # Add info needed
-        n_markers = 4
+        n_markers = 53
         await self.interface.add_marker_set(
             nb_markers=n_markers, data_buffer_size=1000, marker_data_file_key="markers", name="markers", rate=100, unit="mm"
         )
@@ -70,7 +70,7 @@ class RealTimeDataProcessor:
             device_type="force_plate",
             name="force_plate",
             data_buffer_size=100,
-            rate=1000,
+            rate=2000,
             device_data_file_key="force_plate",
             processing_method=None,
             moving_average=True,
