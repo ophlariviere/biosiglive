@@ -263,7 +263,7 @@ class QualisysClient(GenericInterface):
         markers_tmp.data_windows = data_buffer_size
         self.marker_sets.append(markers_tmp)
 
-    def get_force_plate_data(
+    async def get_force_plate_data(
             self, forceplate_name: Union[str, list] = "all", get_frame: bool = True, packet=None
     ):
         if len(self.forces) == 0:
@@ -272,40 +272,33 @@ class QualisysClient(GenericInterface):
             raise RuntimeError("Qualisys client is not initialized.")
         if get_frame:
             packet.framenumber
+
         headerf, forcesdata = packet.get_force()
-        new_data=np.zeros([18,len(forcesdata[0][1])])
-        all_forces_data = np.empty([18,1])
-        channel_name = ['Force_x', 'Force_y', 'Force_z', 'Moment_x', 'Moment_y', 'Moment_z', 'CoP_x', 'CoP_y', 'CoP_z'];
-        unit = ['N', 'N', 'N', 'Nmm', 'Nmm', 'Nmm', 'mm', 'mm', 'mm']
-        if (forcesdata[0][0].force_count) != 0:
-            for platenum in range(len(forcesdata)):
-                PFForce = forcesdata[platenum][1]
-                for subframe in range(len(PFForce)):
-                    data_tmp=PFForce[subframe]
+        all_forces_data=[]
+        # Initialisation des données dynamiques
+        nb_pf = len(forcesdata)  # Nombre de plaques de force
+        collected_data = []  # Liste dynamique pour collecter les données valides
+        PFForce = forcesdata[0][1]  # Données pour une plaque
+        nb_frames = len(PFForce)  # Nombre de frames pour cette plaque
+        # Collecte des données
+        for platenum in range(nb_pf):
 
-                    new_data[9*platenum:9*platenum+9, subframe] = [data_tmp.x, data_tmp.y, data_tmp.z, data_tmp.x_m, data_tmp.y_m, data_tmp.z_m, data_tmp.x_a, data_tmp.y_a, data_tmp.z_a]
+            # Temporaire pour cette plaque
+            plate_data =np.empty((9, nb_frames))
 
-            all_forces_data = new_data
+            for frame_idx, data_tmp in enumerate(PFForce):
+                # Récupérer les données et remplir la matrice temporaire
+                plate_data[:, frame_idx] = [
+                    data_tmp.x, data_tmp.y, data_tmp.z,
+                    data_tmp.x_m, data_tmp.y_m, data_tmp.z_m,
+                    data_tmp.x_a, data_tmp.y_a, data_tmp.z_a
+                ]
+
+            collected_data.append(plate_data)
+
+            # Concaténation des données valides uniquement pour obtenir [9 * nb_pf, nb_frame]
+        all_forces_data = np.concatenate(collected_data, axis=0)
         return all_forces_data
-
-        """
-            Device.new_data = np.zeros((9, headerf.plate_count, packet.framenumber))
-            #for frame in range(forcesdata[0][0].force_count):
-            for platenum in range(headerf.plate_count):
-                if forcesdata[platenum][0].force_count!= 0:
-                    forcedata = forcesdata[platenum][1][-1]
-                    forces_data_tmp = [forcedata.x, forcedata.y, forcedata.z,
-                                    forcedata.x_m, forcedata.y_m, forcedata.z_m,
-                                    forcedata.x_a, forcedata.y_a, forcedata.z_a]
-
-                    Device.new_data[:, platenum, :] = np.array(forces_data_tmp)[:, np.newaxis]
-
-                    all_forces_data.append(Device.new_data)
-
-        if len(all_forces_data) == 1:
-            return all_forces_data[0]
-        return all_forces_data
-        """
 
 
     def get_device_data(
