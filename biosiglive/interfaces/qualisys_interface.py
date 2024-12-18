@@ -282,7 +282,7 @@ class QualisysClient(GenericInterface):
         nb_frames = len(PFForce)  # Nombre de frames pour cette plaque
         # Collecte des données
         for platenum in range(nb_pf):
-
+            PFForce = forcesdata[platenum][1]
             # Temporaire pour cette plaque
             plate_data =np.empty((9, nb_frames))
 
@@ -357,7 +357,7 @@ class QualisysClient(GenericInterface):
             return all_device_data[0]
         return all_device_data
 
-    def get_marker_set_data(
+    async def get_marker_set_data(
         self, subject_name: Union[str, list] = None, marker_names: Union[str, list] = None, get_frame: bool = True, packet = None
     ):
         """
