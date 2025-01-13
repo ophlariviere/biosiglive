@@ -279,13 +279,15 @@ class QualisysClient(GenericInterface):
         nb_pf = len(forcesdata)  # Nombre de plaques de force
         collected_data = []  # Liste dynamique pour collecter les données valides
         PFForce = forcesdata[0][1]  # Données pour une plaque
-        nb_frames = len(PFForce)  # Nombre de frames pour cette plaque
+
+
+        nb_frames = max(len(forcesdata[0][1]), len(forcesdata[1][1]))  # Nombre de frames pour cette plaque
         # Collecte des données
         for platenum in range(nb_pf):
             PFForce = forcesdata[platenum][1]
             # Temporaire pour cette plaque
             plate_data =np.empty((9, nb_frames))
-
+            plate_data[:]=np.nan
             for frame_idx, data_tmp in enumerate(PFForce):
                 # Récupérer les données et remplir la matrice temporaire
                 plate_data[:, frame_idx] = [
@@ -298,6 +300,8 @@ class QualisysClient(GenericInterface):
 
             # Concaténation des données valides uniquement pour obtenir [9 * nb_pf, nb_frame]
         all_forces_data = np.concatenate(collected_data, axis=0)
+        print(all_forces_data)
+        print("newdata")
         return all_forces_data
 
 

@@ -37,14 +37,19 @@ class RealTimeDataProcessor:
         # Chargement des noms des marqueurs à partir du fichier
         tmp = load("walkAll_LAO01_Cond10.bio")
         return tmp['markers_names'].data[0:self.nb_markers].tolist()
+        return tmp['markers_names'].data[0:self.nb_markers].tolist()
 
     async def setup_interface(self):
-        self.interface = await QualisysClient.create(ip="192.168.0.2", system_rate=100, port=22224)
+        self.interface = await QualisysClient.create(ip="192.168.254.1", system_rate=100, port=22224)
 
         # Configuration du jeu de marqueurs
 
         await self.interface.add_marker_set(
-            nb_markers=self.nb_markers, data_buffer_size=1000, marker_data_file_key="markers", name="markers", rate=100,
+            nb_markers=self.nb_markers,
+            data_buffer_size=1000,
+            marker_data_file_key="markers",
+            name="markers",
+            rate=self.system_rate,
             unit="mm"
         )
 
@@ -52,7 +57,7 @@ class RealTimeDataProcessor:
             nb_channels=18,
             device_type="force_plate",
             name="force_plate",
-            data_buffer_size=2000,
+            data_buffer_size=20000,
             rate=2000,
             device_data_file_key="force_plate",
             processing_method=None,
@@ -67,14 +72,14 @@ class RealTimeDataProcessor:
             packet = await self.interface.Connect.get_current_frame(components=self.interface.component)
 
             # data recuperation
-            mark_tmp = self.interface.get_marker_set_data(packet=packet)
-
+            mark_tmp = await self.interface.get_marker_set_data(packet=packet)
             dataforce = await self.interface.get_force_plate_data(packet=packet)
 
             # Calcul de la force verticale moyenne actuelle
             if dataforce is not []:
-                current_fz = np.mean(dataforce[2])
-                print(current_fz)
+                current_fz = np.nanmean(dataforce[2])
+                current_fz2 = np.nanmean(dataforce[11])
+                print(current_fz, current_fz2)
                 if not self.sending_started and detect_start(self.previous_fz, current_fz, self.threshold):
                     self.sending_started = True
                     print("Démarrage de l'envoi des données.")
@@ -90,6 +95,7 @@ class RealTimeDataProcessor:
 
                 # Mettre à jour la valeur précédente de Fz
                 self.previous_fz = current_fz
+
             loop_time = time.perf_counter() - tic
             real_time_to_sleep = max(0, (1 / self.system_rate) - loop_time)
             if real_time_to_sleep > 0:
