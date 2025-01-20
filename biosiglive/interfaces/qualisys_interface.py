@@ -300,8 +300,7 @@ class QualisysClient(GenericInterface):
 
             # Concaténation des données valides uniquement pour obtenir [9 * nb_pf, nb_frame]
         all_forces_data = np.concatenate(collected_data, axis=0)
-        print(all_forces_data)
-        print("newdata")
+
         return all_forces_data
 
 

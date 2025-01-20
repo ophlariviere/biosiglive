@@ -21,7 +21,7 @@ from time import sleep, time
 import importlib
 import biosiglive
 importlib.reload(biosiglive)
-from biosiglive import LivePlot, PlotType, QualisysClient
+from biosiglive import (LivePlot, PlotType, QualisysClient)
 import asyncio
 import logging
 import xml.etree.ElementTree as ET
@@ -33,7 +33,7 @@ from collections import deque
 async def setup():
     """ main function """
     # Connection to qualisys
-    interface = await QualisysClient.create(ip="192.168.254.1", system_rate=100, port=22224)
+    interface = await QualisysClient.create(ip="192.168.0.2", system_rate=100, port=22224)
     queue = asyncio.Queue()
 
     # Add info needed
@@ -88,8 +88,8 @@ async def setup():
         marker_plot.update(mark_tmp[:, :, -1].T, size=0.1)
 
         if (len(force_tmp)) != 0:
-            force1_plot.update(force_tmp[0][:3, -1:])
-            force2_plot.update(force_tmp[1][:3, -1:])
+            force1_plot.update(force_tmp[0:3, -1:])
+            force2_plot.update(force_tmp[9:12, -1:])
 
         # time laps
         loop_time = asyncio.get_event_loop().time() - tic
